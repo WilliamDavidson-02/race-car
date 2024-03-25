@@ -2,6 +2,9 @@ import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import CannonDebugger from "cannon-es-debugger";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader";
+import { RGBELoader } from "three/addons/loaders/RGBELoader";
+import { updateAllMaterials } from "./threeHelper";
 
 const canvas = document.querySelector("canvas");
 
@@ -19,6 +22,12 @@ const sizes = {
 };
 
 /**
+ * Loaders
+ */
+const gltfLoader = new GLTFLoader();
+const rgbeLoader = new RGBELoader();
+
+/**
  * World
  */
 const world = new CANNON.World({
@@ -28,11 +37,29 @@ const world = new CANNON.World({
 const worldDebugger = CannonDebugger(scene, world);
 
 // Build the car chassis
-const chassisShape = new CANNON.Box(new CANNON.Vec3(2, 0.5, 1));
+const chassiDimentions = {
+  width: 0.8,
+  height: 0.4,
+  depth: 1.1,
+};
+
+const chassisModelPos = {
+  x: 0.35,
+  y: -0.4,
+  z: -0.22,
+};
+
+const chassisShape = new CANNON.Box(
+  new CANNON.Vec3(
+    chassiDimentions.depth,
+    chassiDimentions.height,
+    chassiDimentions.width
+  )
+);
 const chassisBody = new CANNON.Body({ mass: 150 });
 chassisBody.addShape(chassisShape);
 chassisBody.position.set(0, 1, 0);
-chassisBody.angularVelocity.set(0, 0.5, 0);
+// chassisBody.angularVelocity.set(0, 0.5, 0);
 world.addBody(chassisBody);
 
 // Create the vehicle
@@ -41,33 +68,32 @@ const vehicle = new CANNON.RaycastVehicle({
 });
 
 const wheelOptions = {
-  radius: 0.45,
-  height: 0.5,
-  suspensionStiffness: 25,
-  suspensionRestLength: 0.1,
+  radius: 0.16,
+  suspensionStiffness: 40,
+  suspensionRestLength: 0.12,
   frictionSlip: 4,
-  dampingRelaxation: 1.8,
+  dampingRelaxation: 1.5,
   dampingCompression: 1.5,
   maxSuspensionForce: 100000,
   rollInfluence: 0.01,
-  maxSuspensionTravel: 0.3,
+  maxSuspensionTravel: 0.15,
   customSlidingRotationalSpeed: -30,
   useCustomSlidingRotationalSpeed: true,
   directionLocal: new CANNON.Vec3(0, -1, 0),
   axleLocal: new CANNON.Vec3(0, 0, 1),
-  chassisConnectionPointLocal: new CANNON.Vec3(-1, 0, 1),
+  chassisConnectionPointLocal: new CANNON.Vec3(-1, 0, chassiDimentions.width),
 };
 
-wheelOptions.chassisConnectionPointLocal.set(-1, -0.4, 1);
+wheelOptions.chassisConnectionPointLocal.set(-0.85, -0.3, 0.7);
 vehicle.addWheel(wheelOptions);
 
-wheelOptions.chassisConnectionPointLocal.set(-1, -0.4, -1);
+wheelOptions.chassisConnectionPointLocal.set(-0.85, -0.3, -0.7);
 vehicle.addWheel(wheelOptions);
 
-wheelOptions.chassisConnectionPointLocal.set(1, -0.4, 1);
+wheelOptions.chassisConnectionPointLocal.set(0.61, -0.3, 0.7);
 vehicle.addWheel(wheelOptions);
 
-wheelOptions.chassisConnectionPointLocal.set(1, -0.4, -1);
+wheelOptions.chassisConnectionPointLocal.set(0.61, -0.3, -0.7);
 vehicle.addWheel(wheelOptions);
 
 vehicle.addToWorld(world);
@@ -122,6 +148,30 @@ const wheel_ground = new CANNON.ContactMaterial(wheelMaterial, groundMaterial, {
 world.addContactMaterial(wheel_ground);
 
 /**
+ * Models
+ */
+let car;
+gltfLoader.load("/race_car.glb", (gltf) => {
+  car = gltf.scene;
+
+  gltf.scene.position.copy(chassisBody.position);
+
+  updateAllMaterials(scene, 0.5);
+
+  scene.add(gltf.scene);
+});
+
+/**
+ * Environment
+ */
+rgbeLoader.load("/sunset_01.hdr", (environmentMap) => {
+  environmentMap.mapping = THREE.EquirectangularReflectionMapping;
+
+  // scene.background = environmentMap;
+  scene.environment = environmentMap;
+});
+
+/**
  * Camera
  */
 const camera = new THREE.PerspectiveCamera(
@@ -150,6 +200,16 @@ const controls = new OrbitControls(camera, renderer.domElement);
  */
 const animate = () => {
   world.fixedStep();
+
+  // Update vehicle
+  if (car) {
+    car.position.set(
+      chassisBody.position.x + chassisModelPos.x,
+      chassisBody.position.y + chassisModelPos.y,
+      chassisBody.position.z + chassisModelPos.z
+    );
+    car.quaternion.copy(chassisBody.quaternion);
+  }
 
   controls.update();
 
