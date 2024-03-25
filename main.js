@@ -27,20 +27,11 @@ const world = new CANNON.World({
 
 const worldDebugger = CannonDebugger(scene, world);
 
-// floor
-const floorBody = new CANNON.Body({
-  mass: 0,
-  shape: new CANNON.Plane(),
-});
-
-floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // make it face up
-world.addBody(floorBody);
-
 // Build the car chassis
 const chassisShape = new CANNON.Box(new CANNON.Vec3(2, 0.5, 1));
 const chassisBody = new CANNON.Body({ mass: 150 });
 chassisBody.addShape(chassisShape);
-chassisBody.position.set(0, 3, 0);
+chassisBody.position.set(0, 1, 0);
 chassisBody.angularVelocity.set(0, 0.5, 0);
 world.addBody(chassisBody);
 
@@ -50,32 +41,33 @@ const vehicle = new CANNON.RaycastVehicle({
 });
 
 const wheelOptions = {
-  radius: 0.5,
-  directionLocal: new CANNON.Vec3(0, -1, 0),
-  suspensionStiffness: 30,
-  suspensionRestLength: 0.3,
-  frictionSlip: 1.4,
-  dampingRelaxation: 2.3,
-  dampingCompression: 4.4,
+  radius: 0.45,
+  height: 0.5,
+  suspensionStiffness: 25,
+  suspensionRestLength: 0.1,
+  frictionSlip: 4,
+  dampingRelaxation: 1.8,
+  dampingCompression: 1.5,
   maxSuspensionForce: 100000,
   rollInfluence: 0.01,
-  axleLocal: new CANNON.Vec3(0, 0, 1),
-  chassisConnectionPointLocal: new CANNON.Vec3(-1, 0, 1),
   maxSuspensionTravel: 0.3,
   customSlidingRotationalSpeed: -30,
   useCustomSlidingRotationalSpeed: true,
+  directionLocal: new CANNON.Vec3(0, -1, 0),
+  axleLocal: new CANNON.Vec3(0, 0, 1),
+  chassisConnectionPointLocal: new CANNON.Vec3(-1, 0, 1),
 };
 
-wheelOptions.chassisConnectionPointLocal.set(-1, -0.2, 1);
+wheelOptions.chassisConnectionPointLocal.set(-1, -0.4, 1);
 vehicle.addWheel(wheelOptions);
 
-wheelOptions.chassisConnectionPointLocal.set(-1, -0.2, -1);
+wheelOptions.chassisConnectionPointLocal.set(-1, -0.4, -1);
 vehicle.addWheel(wheelOptions);
 
-wheelOptions.chassisConnectionPointLocal.set(1, -0.2, 1);
+wheelOptions.chassisConnectionPointLocal.set(1, -0.4, 1);
 vehicle.addWheel(wheelOptions);
 
-wheelOptions.chassisConnectionPointLocal.set(1, -0.2, -1);
+wheelOptions.chassisConnectionPointLocal.set(1, -0.4, -1);
 vehicle.addWheel(wheelOptions);
 
 vehicle.addToWorld(world);
@@ -114,48 +106,17 @@ world.addEventListener("postStep", () => {
   }
 });
 
-// Add the ground
-const sizeX = 64;
-const sizeZ = 64;
-const matrix = [];
-for (let i = 0; i < sizeX; i++) {
-  matrix.push([]);
-  for (let j = 0; j < sizeZ; j++) {
-    if (i === 0 || i === sizeX - 1 || j === 0 || j === sizeZ - 1) {
-      const height = 3;
-      matrix[i].push(height);
-      continue;
-    }
-
-    const height =
-      Math.cos((i / sizeX) * Math.PI * 5) *
-        Math.cos((j / sizeZ) * Math.PI * 5) *
-        2 +
-      2;
-    matrix[i].push(height);
-  }
-}
-
 const groundMaterial = new CANNON.Material("ground");
-const heightfieldShape = new CANNON.Heightfield(matrix, {
-  elementSize: 100 / sizeX,
-});
-const heightfieldBody = new CANNON.Body({ mass: 0, material: groundMaterial });
-heightfieldBody.addShape(heightfieldShape);
-heightfieldBody.position.set(
-  // -((sizeX - 1) * heightfieldShape.elementSize) / 2,
-  -(sizeX * heightfieldShape.elementSize) / 2,
-  -1,
-  // ((sizeZ - 1) * heightfieldShape.elementSize) / 2
-  (sizeZ * heightfieldShape.elementSize) / 2
-);
-heightfieldBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-world.addBody(heightfieldBody);
+const fieldShape = new CANNON.Plane();
+const fieldBody = new CANNON.Body({ mass: 0, material: groundMaterial });
+fieldBody.addShape(fieldShape);
+fieldBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+world.addBody(fieldBody);
 
 // Define interactions between wheels and ground
 const wheel_ground = new CANNON.ContactMaterial(wheelMaterial, groundMaterial, {
-  friction: 0.3,
-  restitution: 0,
+  friction: 0.8,
+  restitution: 0.2,
   contactEquationStiffness: 1000,
 });
 world.addContactMaterial(wheel_ground);
@@ -175,7 +136,7 @@ camera.position.set(20, 10, 20);
 /**
  * Renderer
  */
-const renderer = new THREE.WebGLRenderer({ canvas });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
@@ -223,7 +184,7 @@ window.addEventListener("resize", () => {
 document.addEventListener("keydown", (event) => {
   const maxSteerVal = 0.5;
   const maxForce = 500;
-  const brakeForce = 1000000;
+  const brakeForce = 5;
 
   switch (event.key) {
     case "w":
@@ -234,8 +195,8 @@ document.addEventListener("keydown", (event) => {
 
     case "s":
     case "ArrowDown":
-      vehicle.applyEngineForce(maxForce, 2);
-      vehicle.applyEngineForce(maxForce, 3);
+      vehicle.applyEngineForce(maxForce * 0.5, 2);
+      vehicle.applyEngineForce(maxForce * 0.5, 3);
       break;
 
     case "a":
